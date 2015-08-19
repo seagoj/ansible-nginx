@@ -1,0 +1,97 @@
+---
+- name: Get Nginx
+  get_url:
+    url: "http://nginx.org/download/nginx-{{ nginx_version }}.tar.gz"
+    dest: "/tmp/nginx-{{ nginx_version }}.tar.gz"
+
+- name: Unpack Nginx
+  unarchive:
+    src: "/tmp/nginx-{{ nginx_version }}.tar.gz"
+    dest: /tmp
+    copy: no
+
+- name: Create modules directory
+  file:
+    path: /tmp/nginx-{{ nginx_version }}/modules
+    state: directory
+
+# @todo - Download Nginx module sto thsi directory
+
+- name: Copy configure script
+  copy:
+    src: nginx-configure.sh
+    dest: /tmp/nginx-{{ nginx_version }}/nginx-configure.sh
+    mode: 0744
+    owner: root
+    group: root
+
+- name: Install Development Tools
+  yum:
+    name: "@Development Tools"
+    state: latest
+
+- name: Install Dependencies
+  yum:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - pcre
+    - pcre-devel
+    - openssl
+    - openssl-devel
+    - redhat-lsb-core
+
+- name: Configure Nginx
+  command: ./nginx-configure.sh
+  args:
+    chdir: /tmp/nginx-{{ nginx_version }}
+    creates: Makefile
+
+- name: Make Nginx
+  command: make
+  args:
+    chdir: /tmp/nginx-{{ nginx_version }}
+
+- name: Install Nginx
+  command: make install
+  args:
+    chdir: /tmp/nginx-{{ nginx_version }}
+    creates: /usr/sbin/nginx
+
+- name: Create required directories
+  file:
+    path: "{{ item }}"
+    state: directory
+  with_items:
+    - /var/lib/nginx/body
+    - /var/lib/nginx/proxy
+    - /var/lib/nginx/fastcgi
+    - /var/lib/nginx/uwagi
+    - /var/lib/nginx/sc
+
+- name: Define Nginx service
+  copy:
+    src: nginx.init.d
+    dest: /etc/init.d/nginx
+    owner: root
+    group: root
+    mode: 0744
+  notify: start nginx
+
+- name: Create Required Directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+  with_items:
+    - /etc/nginx/sites-available
+    - /etc/nginx/sites-enabled
+
+- name: Copy Nginx conf
+  copy:
+    src: nginx.conf
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: 0644
